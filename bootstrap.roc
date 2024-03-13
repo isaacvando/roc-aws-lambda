@@ -6,7 +6,7 @@ app "bootstrap"
         pf.Stdout,
         pf.Task.{ Task },
         pf.Env,
-        pf.Http,
+        pf.Http.{ Header },
     ]
     provides [main] to pf
 
@@ -30,7 +30,6 @@ main =
     Task.forever (handle runtimeApi)
 
 handle = \runtimeApi ->
-    {} <- Stdout.line "in handle" |> Task.await
     eventResult <- { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/next" }
         |> Http.send
         |> Task.attempt
@@ -38,6 +37,14 @@ handle = \runtimeApi ->
     when eventResult is
         Err e -> Stdout.line "Error during request: $(Inspect.toStr e)"
         Ok event ->
-            headerString = Inspect.toStr event.headers
-            Stdout.line "headers: $(headerString)"
+            when extractRequestId event.headers is
+                Err _ -> Task.err 1
+                Ok id -> Stdout.line "request id: $(id)"
+
+# extractRequestId : List Header -> Result Str [NoHeaderFound]
+extractRequestId = \headers ->
+    List.findFirst headers \Header key _ ->
+        key == "lambda-runtime-aws-request-id"
+    |> Result.map \Header _ val ->
+        val
 
