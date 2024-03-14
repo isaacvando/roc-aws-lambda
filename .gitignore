@@ -3,3 +3,7 @@ bootstrap
 target
 bootstrap.zip
 release.sh
+dynhost
+*.so
+*.rh
+*.rm

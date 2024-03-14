@@ -11,50 +11,51 @@ app "bootstrap"
     ]
     provides [main] to pf
 
+# bootstrap.roc provides the runtime that fetches requests from AWS Lambda and passes them to your handler
+main : Task {} I32
 main =
-    lambdaTaskRoot <- Env.var "LAMBDA_TASK_ROOT"
-        |> Task.mapErr \_ -> 1
-        |> Task.await
-
-    handler <- Env.var "_HANDLER"
-        |> Task.mapErr \_ -> 1
-        |> Task.await
-
     runtimeApi <- Env.var "AWS_LAMBDA_RUNTIME_API"
-        |> Task.mapErr \_ -> 1
-        |> Task.await
+        |> try "Fetching the aws runtime api env var"
 
     Task.forever (respond runtimeApi)
 
+respond : Str -> Task {} I32
 respond = \runtimeApi ->
-    eventResult <- { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/next" }
+    event <- { Http.defaultRequest &
+            url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/next",
+        }
         |> Http.send
-        |> Task.attempt
+        |> try "Fetching the request"
 
-    when eventResult is
-        Err e -> Stdout.line "Error during request: $(Inspect.toStr e)"
-        Ok event ->
-            when extractRequestId event.headers is
-                Err _ -> Task.err 1
-                Ok id ->
-                    result <- Handler.handle event.body |> Task.attempt
-                    when result is
-                        Err e ->
-                            {} <- Stdout.line e |> Task.await
-                            Task.err 1
+    requestId <- extractRequestId event.headers
+        |> try "Extracting the request id"
 
-                        Ok msg ->
-                            { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(id)/response", body: Str.toUtf8 msg, method: Post }
-                            |> Http.send
-                            |> Task.onErr \e ->
-                                {} <- Stdout.line "$(Inspect.toStr e)" |> Task.await
-                                Task.err 1
-                            |> Task.map \_ -> {}
+    response <- Handler.handle event.body
+        |> try "Handling the request"
 
-# extractRequestId : List Header -> Result Str [NoHeaderFound]
+    _ <- { Http.defaultRequest &
+            url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(requestId)/response",
+            body: Str.toUtf8 response,
+            method: Post,
+        }
+        |> Http.send
+        |> try "Sending the response to AWS"
+
+    Task.ok {}
+
+extractRequestId : List Header -> Task Str [NotFound]
 extractRequestId = \headers ->
-    List.findFirst headers \Header key _ ->
+    result = List.findFirst headers \Header key _ ->
         key == "lambda-runtime-aws-request-id"
-    |> Result.map \Header _ val ->
-        val
 
+    when result is
+        Ok (Header _ val) -> Task.ok val
+        Err e -> Task.err e
+
+# If the task failed, print the error and exit, otherwise continue normally
+try : Task a b, Str, (a -> Task c I32) -> Task c I32 where b implements Inspect
+try = \task, message, callback ->
+    Task.onErr task \error ->
+        {} <- Stdout.line "$(message) failed with error: $(Inspect.toStr error)" |> Task.await
+        Task.err 1
+    |> Task.await callback
