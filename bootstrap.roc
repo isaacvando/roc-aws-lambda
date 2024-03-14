@@ -12,10 +12,10 @@ app "bootstrap"
     provides [main] to pf
 
 main =
-    {} <- Stdout.line "hello world!" |> Task.await
     lambdaTaskRoot <- Env.var "LAMBDA_TASK_ROOT"
         |> Task.mapErr \_ -> 1
         |> Task.await
+
     handler <- Env.var "_HANDLER"
         |> Task.mapErr \_ -> 1
         |> Task.await
@@ -24,13 +24,9 @@ main =
         |> Task.mapErr \_ -> 1
         |> Task.await
 
-    {} <- Stdout.line "$(runtimeApi)" |> Task.await
+    Task.forever (respond runtimeApi)
 
-    {} <- Stdout.line "task root: $(lambdaTaskRoot) - handler: $(handler)" |> Task.await
-
-    Task.forever (handle runtimeApi)
-
-handle = \runtimeApi ->
+respond = \runtimeApi ->
     eventResult <- { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/next" }
         |> Http.send
         |> Task.attempt
@@ -48,9 +44,11 @@ handle = \runtimeApi ->
                             Task.err 1
 
                         Ok msg ->
-                            { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(id)/response", body: Str.toUtf8 msg }
+                            { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(id)/response", body: Str.toUtf8 msg, method: Post }
                             |> Http.send
-                            |> Task.mapErr \_ -> 1
+                            |> Task.onErr \e ->
+                                {} <- Stdout.line "$(Inspect.toStr e)" |> Task.await
+                                Task.err 1
                             |> Task.map \_ -> {}
 
 # extractRequestId : List Header -> Result Str [NoHeaderFound]
