@@ -7,6 +7,7 @@ app "bootstrap"
         pf.Task.{ Task },
         pf.Env,
         pf.Http.{ Header },
+        Handler,
     ]
     provides [main] to pf
 
@@ -39,7 +40,18 @@ handle = \runtimeApi ->
         Ok event ->
             when extractRequestId event.headers is
                 Err _ -> Task.err 1
-                Ok id -> Stdout.line "request id: $(id)"
+                Ok id ->
+                    result <- Handler.handle event.body |> Task.attempt
+                    when result is
+                        Err e ->
+                            {} <- Stdout.line e |> Task.await
+                            Task.err 1
+
+                        Ok msg ->
+                            { Http.defaultRequest & url: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(id)/response", body: Str.toUtf8 msg }
+                            |> Http.send
+                            |> Task.mapErr \_ -> 1
+                            |> Task.map \_ -> {}
 
 # extractRequestId : List Header -> Result Str [NoHeaderFound]
 extractRequestId = \headers ->
