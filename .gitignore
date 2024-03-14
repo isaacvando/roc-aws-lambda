@@ -5,6 +5,4 @@ bootstrap.zip
 release.sh
 dynhost
 *.so
-*.rh
-*.rm
 local
