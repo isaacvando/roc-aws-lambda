@@ -11,7 +11,7 @@ app "bootstrap"
     ]
     provides [main] to pf
 
-# bootstrap.roc provides the runtime that fetches requests from AWS Lambda and passes them to your handler
+# bootstrap.roc provides the runtime that fetches requests from AWS Lambda and passes them to the handler
 main : Task {} I32
 main =
     runtimeApi <- Env.var "AWS_LAMBDA_RUNTIME_API"
@@ -28,6 +28,7 @@ respond = \runtimeApi ->
         |> try "Fetching the request"
 
     requestId <- extractRequestId event.headers
+        |> Task.fromResult
         |> try "Extracting the request id"
 
     response <- Handler.handle event.body
@@ -43,14 +44,12 @@ respond = \runtimeApi ->
 
     Task.ok {}
 
-extractRequestId : List Header -> Task Str [NotFound]
+extractRequestId : List Header -> Result Str [NotFound]
 extractRequestId = \headers ->
-    result = List.findFirst headers \Header key _ ->
+    List.findFirst headers \Header key _ ->
         key == "lambda-runtime-aws-request-id"
-
-    when result is
-        Ok (Header _ val) -> Task.ok val
-        Err e -> Task.err e
+    |> Result.map \Header _ val -> 
+        val
 
 # If the task failed, print the error and exit, otherwise continue normally
 try : Task a b, Str, (a -> Task c I32) -> Task c I32 where b implements Inspect
