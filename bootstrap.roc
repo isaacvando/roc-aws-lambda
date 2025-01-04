@@ -8,20 +8,19 @@ import Handler
 # bootstrap.roc provides the runtime that fetches requests from AWS Lambda and passes them to the handler
 main! : List Arg => Result {} _
 main! = \_ ->
-    runtimeApi = Env.var! "AWS_LAMBDA_RUNTIME_API" |> try
+    runtime_api = Env.var! "AWS_LAMBDA_RUNTIME_API" |> try
 
     # Task.forever (respond runtimeApi)
-    respond! runtimeApi
+    respond! runtime_api
 
 respond! : Str => Result {} _
-respond! = \runtimeApi ->
+respond! = \runtime_api ->
     event =
-        { Http.default_request &
-            uri: "http://$(runtimeApi)/2018-06-01/runtime/invocation/next",
-        }
+        Http.default_request
+        |> &uri "http://$(runtime_api)/2018-06-01/runtime/invocation/next"
         |> Http.send!
 
-    requestId =
+    request_id =
         List.findFirst event.headers \{ name } ->
             name == "lambda-runtime-aws-request-id"
         |> Result.map .value
@@ -30,11 +29,10 @@ respond! = \runtimeApi ->
     response = Handler.handle! event.body |> try
 
     _ =
-        { Http.default_request &
-            uri: "http://$(runtimeApi)/2018-06-01/runtime/invocation/$(requestId)/response",
-            body: Str.toUtf8 response,
-            method: Post,
-        }
+        Http.default_request
+        |> &uri "http://$(runtime_api)/2018-06-01/runtime/invocation/$(request_id)/response"
+        |> &body (Str.toUtf8 response)
+        |> &method Post
         |> Http.send!
 
     Ok {}
