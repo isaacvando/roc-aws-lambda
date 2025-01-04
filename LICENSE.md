@@ -1,4 +1,4 @@
-Copyright (c) 2024 Isaac Van Doren and contributors
+Copyright (c) 2025 Isaac Van Doren and contributors
 
 The Universal Permissive License (UPL), Version 1.0
 
