@@ -1,7 +1,5 @@
-interface Handler
-    exposes [handle]
-    imports [pf.Task.{ Task }]
+module [handle!]
 
-handle : List U8 -> Task Str Str
-handle = \_ ->
-    Task.ok "Hello, World!"
+handle! : List U8 => Result Str _
+handle! = \_ ->
+    Ok "Hello, World!"
