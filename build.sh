@@ -1,7 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
-roc build bootstrap.roc --output bootstrap --target linux-x64
+roc build bootstrap.roc --optimize --output bootstrap --target linux-x64
 
 roc_exit_code=$?
 # Exit code 2 means there were warnings but no errors
