@@ -1,5 +1,5 @@
 module [handle!]
 
-handle! : List U8 => Result Str _
+handle! : List U8 => Result Str []
 handle! = \_ ->
     Ok "Hello, World!"

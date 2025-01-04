@@ -8,10 +8,15 @@ import Handler
 # bootstrap.roc provides the runtime that fetches requests from AWS Lambda and passes them to the handler
 main! : List Arg => Result {} _
 main! = \_ ->
-    runtime_api = Env.var! "AWS_LAMBDA_RUNTIME_API" |> try
+    runtime_api =
+        Env.var! "AWS_LAMBDA_RUNTIME_API"
+        |> Result.mapErr \_ -> Exit 1 "Unable to read AWS_LAMBDA_RUNTIME_API"
+        |> try
 
-    # Task.forever (respond runtimeApi)
-    respond! runtime_api
+    loop! = \{} ->
+        try respond! runtime_api
+        loop! {}
+    loop! {}
 
 respond! : Str => Result {} _
 respond! = \runtime_api ->
@@ -24,9 +29,13 @@ respond! = \runtime_api ->
         List.findFirst event.headers \{ name } ->
             name == "lambda-runtime-aws-request-id"
         |> Result.map .value
+        |> Result.mapErr \_ -> MissingRequestIdHeader
         |> try
 
-    response = Handler.handle! event.body |> try
+    response =
+        when Handler.handle! event.body is
+            Ok msg -> msg
+            Err tag -> Inspect.toStr tag
 
     _ =
         Http.default_request
