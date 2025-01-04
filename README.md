@@ -1,4 +1,4 @@
-# roc-aws-lambda-runtime
+# roc-aws-lambda
 
 A [custom runtime](https://docs.aws.amazon.com/lambda/latest/dg/runtimes-custom.html) for AWS Lambda written in Roc using [basic-cli](https://github.com/roc-lang/basic-cli).
 
